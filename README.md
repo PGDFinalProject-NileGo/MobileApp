@@ -2,14 +2,16 @@
 
 Flutter-based Android app for a bicycle sharing system.
 
+
+## Initial Setup
+Follow the instructions here  - https://docs.flutter.dev/get-started/quick
 ## Workflow
 
+Clone to device: git clone url
 Pull latest changes: git pull origin develop
 Create feature branch: git checkout -b feature/bluetooth-unlock
 Make changes and commit: git commit -m "Add Bluetooth unlock function"
 Push: git push origin feature/bluetooth-unlock
-Create Pull Request on GitHub
-Teammate reviews and merges
 
 
 ## Features
@@ -50,21 +52,7 @@ bashcd nilego-mobile
 flutter create nilego_app
 cd nilego_app
 
-# Edit README.md
-git add .
-git commit -m "Initial Flutter project"
-git push origin main
-In backend repo:
-bashcd nilego-backend
-mkdir firebase docs
-touch docs/database_schema.md
-touch README.md
-git add .
-git commit -m "Initial backend structure"
-git push origin main
 
-
----
 
 ### **9. Documentation Folder Structure**
 
@@ -134,47 +122,4 @@ node_modules/
 .env
 serviceAccountKey.json
 
-
-
-### 5. Project Board Setup (Optional but useful)
-
-On GitHub main page:
-
-1. Go to "Projects" tab
-2. Create new project: "NileGo Development"
-3. Choose "Board" template
-4. Add columns:
-   - **Backlog**
-   - **To Do**
-   - **In Progress**
-   - **Testing**
-   - **Done**
-
-5. Add initial tasks:
-   - "Setup ESP32 development environment"
-   - "Order hardware components"
-   - "Create Firebase project"
-   - "Design app UI mockups"
-   - etc.
-
----
-
-### **6. Issues/Tasks Template**
-
-Create your first issues in each repo:
-
-**Example Issue in firmware repo:**
-
-Title: Setup ESP32 and test basic functionality
-
-Description:
-- [ ] Install Arduino IDE with ESP32 support
-- [ ] Connect ESP32 to computer
-- [ ] Upload Blink example
-- [ ] Test Wi-Fi connection
-- [ ] Test GPIO pin control
-
-Assignee: [Your teammate]
-Labels: setup, priority-high
-Milestone: Week 1
 
