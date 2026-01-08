@@ -4,14 +4,17 @@ Flutter-based Android app for a bicycle sharing system.
 
 
 ## Initial Setup
-Follow the instructions here  - https://docs.flutter.dev/get-started/quick
+Follow the instructions here to setup Flutter on your device - https://docs.flutter.dev/get-started/quick
+
+To run : flutter run
+
 ## Workflow
 
-Clone to device: git clone url
-Pull latest changes: git pull origin develop
-Create feature branch: git checkout -b feature/bluetooth-unlock
-Make changes and commit: git commit -m "Add Bluetooth unlock function"
-Push: git push origin feature/bluetooth-unlock
+- Clone to device: git clone url
+- Pull latest changes: git pull origin develop
+- Create feature branch: git checkout -b feature/</feature name>
+- Make changes and commit: git commit -m "Add Bluetooth unlock function"
+- Push: git push origin feature/bluetooth-unlock
 
 
 ## Features
