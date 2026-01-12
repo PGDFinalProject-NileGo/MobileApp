@@ -12,3 +12,6 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+.dart_tool/ .flutter-plugins .packages .pub-cache/ build/ *.g.dart
+google-services.json firebase_options.dart .env
+.firebase/ node_modules/ .env serviceAccountKey.json
