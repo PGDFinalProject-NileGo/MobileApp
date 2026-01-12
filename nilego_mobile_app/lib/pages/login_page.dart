@@ -20,7 +20,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (_passwordController.text.trim() == _confirmPasswordController.text.trim()) {
       try {
         // 2. Talk to Firebase to create user
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
