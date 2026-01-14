@@ -6,21 +6,12 @@ Flutter-based Android app for a bicycle sharing system.
 
 Follow the instructions here to setup Flutter on your device - https://docs.flutter.dev/get-started/quick
 
-## Workflow
-
-- Clone to device: git clone url
-- Pull latest changes: git pull origin develop
-- Create feature branch: git checkout -b feature/</feature name>
-- Make changes and commit: git commit -m "Add Bluetooth unlock function"
-- Push: git push origin feature/<feature-title>
-
 ## Features
 - User authentication
 - Bike location map
 - Bluetooth unlock/lock
 - Wallet & billing
 - Ride history
-
 
 ## Tech Stack
 - Flutter
@@ -29,8 +20,15 @@ Follow the instructions here to setup Flutter on your device - https://docs.flut
 - Google Maps
 - Flutter Blue Plus (Bluetooth)
 
+## Workflow
 
-### **Documentation Folder Structure**
+- Clone to device: git clone url
+- Pull latest changes: git pull origin develop
+- Create feature branch: git checkout -b feature/</feature name>
+- Make changes and commit: git commit -m "Add Bluetooth unlock function"
+- Push: git push origin feature/<feature-title>
+
+## **Documentation Folder Structure**
 
 /docs
 - requirements.md          - Project requirements
@@ -41,11 +39,9 @@ Follow the instructions here to setup Flutter on your device - https://docs.flut
 - /pin_diagram.md         - Pin Diagram
 
 
-### **Branch strategy:**
+## **Branch strategy:**
 
 - `main` - production/demo ready code
 - `develop` - integration branch
 - `feature/gps-integration` - individual features
 - `bugfix/lock-timeout` - bug fixes
-
-
