@@ -20,14 +20,6 @@ Follow the instructions here to setup Flutter on your device - https://docs.flut
 - Google Maps
 - Flutter Blue Plus (Bluetooth)
 
-## Workflow
-
-- Clone to device: git clone url
-- Pull latest changes: git pull origin develop
-- Create feature branch: git checkout -b feature/</feature name>
-- Make changes and commit: git commit -m "Add Bluetooth unlock function"
-- Push: git push origin feature/<feature-title>
-
 ## **Documentation Folder Structure**
 
 /docs
@@ -38,6 +30,13 @@ Follow the instructions here to setup Flutter on your device - https://docs.flut
 - testing_plan.md         - Test cases
 - /pin_diagram.md         - Pin Diagram
 
+## Workflow
+
+- Clone to device: git clone url
+- Pull latest changes: git pull origin develop
+- Create feature branch: git checkout -b feature/</feature name>
+- Make changes and commit: git commit -m "Add Bluetooth unlock function"
+- Push: git push origin feature/<feature-title>
 
 ## **Branch strategy:**
 
