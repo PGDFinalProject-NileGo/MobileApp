@@ -2,11 +2,9 @@
 
 Flutter-based Android app for a bicycle sharing system.
 
-
 ## Initial Setup
-Follow the instructions here to setup Flutter on your device - https://docs.flutter.dev/get-started/quick
 
-To run : flutter run
+Follow the instructions here to setup Flutter on your device - https://docs.flutter.dev/get-started/quick
 
 ## Workflow
 
@@ -34,18 +32,17 @@ To run : flutter run
 
 ### **Documentation Folder Structure**
 
-Add `/docs` to each repo:
-
 /docs
 - requirements.md          - Project requirements
 - architecture.md          - System design
 - setup_guide.md          - How to run locally
 - api_documentation.md    - API endpoints (backend)
 - testing_plan.md         - Test cases
-- /pin_diagram.md
+- /pin_diagram.md         - Pin Diagram
 
 
 ### **Branch strategy:**
+
 - `main` - production/demo ready code
 - `develop` - integration branch
 - `feature/gps-integration` - individual features
