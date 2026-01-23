@@ -1,3 +1,4 @@
+import '../home_page.dart'; // Adjust path if needed, e.g., 'package:nilego/home_page.dart'
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../pages/login_page.dart';
@@ -50,30 +51,5 @@ class _LoginOrRegisterPageState extends State<LoginOrRegisterPage> {
     } else {
       return RegisterPage(showLoginPage: togglePages);
     }
-  }
-}
-
-// A Dummy Home Page just to prove it works
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("NileGo Home")),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("YOU ARE LOGGED IN!"),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => FirebaseAuth.instance.signOut(),
-              child: const Text("Sign Out"),
-            )
-          ],
-        ),
-      ),
-    );
   }
 }
