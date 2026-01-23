@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; 
-import 'auth/auth_page.dart'; // <--- Make sure this file exists!
+import 'auth/auth_page.dart' hide HomePage; // <--- Make sure this file exists!
+//import 'home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -8,10 +8,16 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localProperties.load(new FileInputStream(localPropertiesFile))
+}
 android {
     namespace = "com.example.nilego_mobile_app"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "26.1.10909125"
+    //ndkVersion = "26.1.10909125"
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -23,6 +29,7 @@ android {
     }
 
     defaultConfig {
+        manifestPlaceholders = [mapsApiKey: localProperties['MAPS_API_KEY']]
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.nilego_mobile_app"
         // You can update the following values to match your application needs.

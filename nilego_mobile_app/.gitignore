@@ -31,7 +31,19 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+*.g.dart
 /coverage/
+google-services.json
+firebase_options.dart
+.env
+
+
+# Firebase
+.firebase/
+node_modules/
+.env
+serviceAccountKey.json
+
 
 # Symbolication related
 app.*.symbols
@@ -43,3 +55,4 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/local.properties
