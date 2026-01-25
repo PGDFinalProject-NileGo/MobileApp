@@ -8,6 +8,8 @@ import 'package:nilego_mobile_app/history_page.dart';
 import 'package:nilego_mobile_app/profile_page.dart';
 import 'package:nilego_mobile_app/wallet_page.dart';
 import 'scanner_page.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'dart:convert'; // For utf8 encoding
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -59,40 +61,140 @@ class _HomePageState extends State<HomePage> {
   }
 
   // LOGIC: Unlock Bike
-  Future<void> handleBikeUnlock(String bikeId) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
+  // Future<void> handleBikeUnlock(String bikeId) async {
+  //   showDialog(
+  //     context: context,
+  //     barrierDismissible: false,
+  //     builder: (context) => const Center(child: CircularProgressIndicator()),
+  //   );
 
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      final bikeRef = FirebaseFirestore.instance.collection('bikes').doc(bikeId);
-      final doc = await bikeRef.get();
+  //   try {
+  //     final user = FirebaseAuth.instance.currentUser;
+  //     final bikeRef = FirebaseFirestore.instance.collection('bikes').doc(bikeId);
+  //     final doc = await bikeRef.get();
       
-      if (!doc.exists) throw "Bike not found in Database!";
+  //     if (!doc.exists) throw "Bike not found in Database!";
 
-      await bikeRef.update({
+  //     await bikeRef.update({
+  //       'status': 'in_use',
+  //       'is_locked': false,
+  //       'current_rider': user?.uid,
+  //       'start_time': FieldValue.serverTimestamp(),
+  //     });
+
+  //     if (mounted) {
+  //       Navigator.pop(context);
+  //       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Bike Unlocked!"), backgroundColor: Colors.green));
+  //       Navigator.push(
+  //         context,
+  //         MaterialPageRoute(builder: (context) => ActiveRidePage(bikeId: bikeId)),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     if (mounted) Navigator.pop(context);
+  //     _showError("Unlock Failed: $e");
+  //   }
+  // }
+
+Future<void> handleBikeUnlock(String bikeId) async {
+  // Show Loading
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CircularProgressIndicator(color: Colors.white),
+        SizedBox(height: 10),
+        Text("Connecting to Bike...", style: TextStyle(color: Colors.white))
+      ],
+    )),
+  );
+
+  try {
+    // 1. TURN ON BLUETOOTH (Android 12+ requires permissions)
+    if (await FlutterBluePlus.adapterState.first != BluetoothAdapterState.on) {
+      throw "Bluetooth is OFF. Please turn it on.";
+    }
+
+    // 2. SCAN FOR THE BIKE
+    // We look for a device named "NileGo_Bike_1" (Matches Firmware)
+    BluetoothDevice? bikeDevice;
+    
+    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
+    
+    // Listen to scan results
+    var subscription = FlutterBluePlus.scanResults.listen((results) {
+      for (ScanResult r in results) {
+        if (r.device.platformName == "NileGo_Bike_1") {
+           bikeDevice = r.device;
+           FlutterBluePlus.stopScan();
+           break;
+        }
+      }
+    });
+
+    // Wait for scan to finish
+    await Future.delayed(const Duration(seconds: 4));
+    await subscription.cancel();
+
+    if (bikeDevice == null) {
+      throw "Bike not found nearby. Move closer!";
+    }
+
+    // 3. CONNECT TO BIKE
+    await bikeDevice!.connect();
+
+    // 4. FIND THE SERVICE & CHARACTERISTIC
+    // UUIDs must match your Firmware!
+    const String SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const String CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    
+    List<BluetoothService> services = await bikeDevice!.discoverServices();
+    BluetoothCharacteristic? commandChar;
+
+    for (var service in services) {
+      if (service.uuid.toString() == SERVICE_UUID) {
+        for (var c in service.characteristics) {
+          if (c.uuid.toString() == CHAR_UUID) {
+            commandChar = c;
+          }
+        }
+      }
+    }
+
+    if (commandChar == null) throw "Service not found on Bike!";
+
+    // 5. SEND "OPEN" COMMAND
+    await commandChar.write(utf8.encode("OPEN"));
+    
+    // 6. DISCONNECT & UPDATE FIREBASE (For History/Billing)
+    await bikeDevice!.disconnect();
+    
+    // Update Firebase so the App knows we are riding
+    final user = FirebaseAuth.instance.currentUser;
+    await FirebaseFirestore.instance.collection('bikes').doc(bikeId).update({
         'status': 'in_use',
         'is_locked': false,
         'current_rider': user?.uid,
         'start_time': FieldValue.serverTimestamp(),
-      });
+    });
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Bike Unlocked!"), backgroundColor: Colors.green));
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => ActiveRidePage(bikeId: bikeId)),
-        );
-      }
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      _showError("Unlock Failed: $e");
+    // Success!
+    if (mounted) {
+      Navigator.pop(context); // Close loading
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Unlocked via Bluetooth!"), backgroundColor: Colors.green));
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => ActiveRidePage(bikeId: bikeId)),
+      );
     }
+
+  } catch (e) {
+    if (mounted) Navigator.pop(context); // Close loading
+    _showError("Unlock Failed: $e");
   }
+}
 
   void _showError(String message) {
     showDialog(
