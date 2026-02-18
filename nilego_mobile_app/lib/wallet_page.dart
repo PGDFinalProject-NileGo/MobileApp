@@ -28,7 +28,7 @@ class WalletPage extends StatelessWidget {
                 builder: (context, snapshot) {
                   String balance = "0";
                   if (snapshot.hasData && snapshot.data!.exists) {
-                    balance = (snapshot.data!['balance'] ?? 0).toString();
+                    balance = (snapshot.data!['balance'] ?? 0).toStringAsFixed(2);
                   }
 
                   return Container(
@@ -95,9 +95,10 @@ class WalletPage extends StatelessWidget {
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
                         final data = docs[index];
+                        final double cost = (data['cost'] ?? 0.0).toDouble();
                         return _buildTransactionItem(
                           "Ride Payment", 
-                          "-${data['cost']}", 
+                          "-${cost.toStringAsFixed(2)}", 
                           Colors.grey
                         );
                       },
@@ -154,7 +155,7 @@ class WalletPage extends StatelessWidget {
           const SizedBox(width: 15),
           Text(title, style: const TextStyle(fontSize: 16, color: Colors.black54)),
           const Spacer(),
-          Text("₦$amount", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54)),
+          Text("₦${double.parse(amount).toStringAsFixed(2)}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54)),
         ],
       ),
     );
