@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1073448126292",
+    "project_id": "nilego-mvp",
+    "storage_bucket": "nilego-mvp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1073448126292:android:96dce2c10ddd757d736ac1",
+        "android_client_info": {
+          "package_name": "com.example.nilego_mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-ZHClEzxp4YJMstQ80dIFedGAXhGn4To"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
