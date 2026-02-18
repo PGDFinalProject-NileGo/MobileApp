@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Ensure you added 'intl' to pubspec.yaml
+import 'package:intl/intl.dart';
 
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
@@ -20,7 +20,6 @@ class HistoryPage extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-             // This helps you catch the index error if it happens!
             return Center(child: Text("Error: ${snapshot.error}")); 
           }
 
@@ -38,13 +37,28 @@ class HistoryPage extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             itemCount: rides.length,
             itemBuilder: (context, index) {
-              final ride = rides[index].data();
-              // Safe date formatting
+              final ride = rides[index].data() as Map<String, dynamic>;
+
+              // --- 1. LOGIC FOR DURATION ---
+              final dynamic durationData = ride['duration_seconds'] ?? ride['duration'];
+              String durationDisplay;
+
+              if (durationData is int) {
+                // Formats old numeric seconds to MM:SS
+                durationDisplay = "${(durationData ~/ 60).toString().padLeft(2, '0')}:${(durationData % 60).toString().padLeft(2, '0')}";
+              } else {
+                // Uses the string "05:22" from newer data
+                durationDisplay = durationData?.toString() ?? "00:00";
+              }
+
+              // --- 2. LOGIC FOR DISTANCE & DATE ---
+              final double distance = (ride['distance_km'] ?? 0.0).toDouble();
               final Timestamp? ts = ride['timestamp'];
               final dateStr = ts != null 
                   ? DateFormat('MMM d, yyyy . h:mm a').format(ts.toDate()) 
                   : "Just now";
 
+              // --- 3. YOUR ORIGINAL UI DESIGN ---
               return Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(20),
@@ -72,7 +86,8 @@ class HistoryPage extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("${(ride['duration_seconds'] ?? 0) ~/ 60} mins . ${(ride['distance_km'] ?? 0).toStringAsFixed(1)}km"),
+                        // Displays real GPS distance and formatted time
+                        Text("$durationDisplay mins . ${distance.toStringAsFixed(1)}km"),
                         Text(
                           "₦${(ride['cost'] ?? 0).toStringAsFixed(2)}",
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),

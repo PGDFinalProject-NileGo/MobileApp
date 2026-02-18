@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart'; // <--- ADD THIS
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -10,24 +11,36 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  // 1. CONTROLLERS (Preserved)
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // 2. LOGIC ENGINE (Preserved 100%)
+  // 2. UPDATED LOGIC ENGINE
   Future signUp() async {
     // A. Check Password Match
     if (_passwordController.text.trim() == _confirmPasswordController.text.trim()) {
       try {
-        // B. Firebase Call
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        // B. Firebase Auth Call
+        UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
-        print("User Created!"); // kept this debug line for you
+
+        // ✨ NEW: Create the Wallet document for the new user
+        if (userCredential.user != null) {
+          await FirebaseFirestore.instance
+              .collection('wallets')
+              .doc(userCredential.user!.uid)
+              .set({
+            'balance': 0, // Starting balance
+            'user_email': _emailController.text.trim(),
+            'created_at': FieldValue.serverTimestamp(),
+          });
+        }
+
+        print("User & Wallet Created!"); 
       } on FirebaseAuthException catch (e) {
-        // C. Error Dialog
+        // C. Error Dialog (Matches your existing style)
         showDialog(
             context: context,
             builder: (context) {
@@ -35,7 +48,7 @@ class _RegisterPageState extends State<RegisterPage> {
             });
       }
     } else {
-      // D. Mismatch Dialog
+      // D. Mismatch Dialog (Matches your existing style)
       showDialog(
           context: context,
           builder: (context) {
@@ -44,7 +57,6 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  // 3. CLEANUP (Preserved)
   @override
   void dispose() {
     _emailController.dispose();
@@ -53,18 +65,17 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
-  // 4. THE UI (Updated to Match Figma)
   @override
   Widget build(BuildContext context) {
+    // ... rest of your build method (UI) remains 100% the same ...
     return Scaffold(
-      backgroundColor: Colors.white, // Changed to match Figma
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: SingleChildScrollView(
             child: Column(
               children: [
-                // Top Bar: Logo
                 const SizedBox(height: 10),
                 Row(
                   children: const [
@@ -80,10 +91,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 50),
-
-                // Heading
                 const Text(
                   'REGISTER',
                   style: TextStyle(
@@ -93,17 +101,14 @@ class _RegisterPageState extends State<RegisterPage> {
                     letterSpacing: 1.0,
                   ),
                 ),
-
                 const SizedBox(height: 40),
-
-                // Email Input
                 TextField(
-                  controller: _emailController, // Linked to controller
+                  controller: _emailController,
                   decoration: InputDecoration(
                     labelText: 'Email',
                     hintText: 'user@mail.com',
                     filled: true,
-                    fillColor: const Color(0xFFE8DEF8), // Figma Purple
+                    fillColor: const Color(0xFFE8DEF8),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.cancel_outlined, color: Colors.black54),
                       onPressed: () => _emailController.clear(),
@@ -117,13 +122,10 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Password Input
                 TextField(
-                  controller: _passwordController, // Linked to controller
-                  obscureText: true, // Hides text
+                  controller: _passwordController,
+                  obscureText: true,
                   decoration: InputDecoration(
                     labelText: 'Password',
                     hintText: 'xxxxxx',
@@ -142,13 +144,10 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Confirm Password Input
                 TextField(
-                  controller: _confirmPasswordController, // Linked to controller
-                  obscureText: true, // Hides text
+                  controller: _confirmPasswordController,
+                  obscureText: true,
                   decoration: InputDecoration(
                     labelText: 'Confirm Password',
                     hintText: 'xxxxxx',
@@ -167,10 +166,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Login Link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -188,15 +184,12 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 30),
-
-                // Sign Up Button
                 SizedBox(
                   width: 150,
                   height: 45,
                   child: ElevatedButton.icon(
-                    onPressed: signUp, // Calls the Logic Engine
+                    onPressed: signUp,
                     icon: const Icon(Icons.star, size: 18, color: Colors.white),
                     label: const Text(
                       'Sign Up',
@@ -212,8 +205,6 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                 ),
-                
-                // Bottom spacing for scrolling
                 const SizedBox(height: 20),
               ],
             ),

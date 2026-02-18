@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:nilego_mobile_app/ride_summary_page.dart'; // Make sure this import matches your file name
+import 'package:nilego_mobile_app/ride_summary_page.dart';
+import 'package:geolocator/geolocator.dart';
 
 class ActiveRidePage extends StatefulWidget {
   final String bikeId;
@@ -16,14 +18,19 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
   // Logic Variables
   int _secondsElapsed = 0;
   Timer? _timer;
+  StreamSubscription<Position>? _positionStream;
+  GoogleMapController? _mapController;
   
-  // 🟢 TODO: ADJUST PRICING LATER IF NEEDED
   final double _costPerMinute = 10.0; 
   
-  // 🟢 TODO: REMOVE THIS SIMULATION VARIABLE WHEN GPS IS REAL
-  double _simulatedDistanceKm = 0.0;
+  Position? _currentPosition;
+  double _totalDistanceKm = 0.0;
+  LatLng? _lastPosition;
 
-  // Nile University Coordinates (Center of Map)
+  // Polylines for drawing the path
+  final Set<Polyline> _polylines = {};
+  final List<LatLng> _polylinePoints = [];
+
   static const LatLng _nileUniversity = LatLng(9.0405, 7.3986);
 
   @override
@@ -32,17 +39,61 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
     _startRide();
   }
 
-  void _startRide() {
-    // Start the Timer & Simulation
+  void _startRide() async {
+    // 1. Request Permission
+    LocationPermission permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      return; 
+    }
+
+    // 2. Start UI Timer (For the clock display)
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
           _secondsElapsed++;
+        });
+      }
+    });
+
+    // 3. Start GPS Location Stream
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 3, // Updates every 3 meters moved
+      ),
+    ).listen((Position pos) {
+      if (mounted) {
+        LatLng currentLatLng = LatLng(pos.latitude, pos.longitude);
+        
+        // Move camera to follow the user
+        _mapController?.animateCamera(CameraUpdate.newLatLng(currentLatLng));
+
+        setState(() {
+          _currentPosition = pos;
+          _polylinePoints.add(currentLatLng);
+
+          // Update Polyline path
+          _polylines.add(
+            Polyline(
+              polylineId: const PolylineId('ride_path'),
+              points: _polylinePoints,
+              color: const Color(0xFF6750A4),
+              width: 5,
+            ),
+          );
+
+          // Calculate distance
+          if (_lastPosition != null) {
+            double distanceMeters = Geolocator.distanceBetween(
+              _lastPosition!.latitude,
+              _lastPosition!.longitude,
+              pos.latitude,
+              pos.longitude,
+            );
+            _totalDistanceKm += distanceMeters / 1000;
+          }
           
-          // 🟢 TODO: DELETE THIS LINE WHEN HARDWARE/GPS IS READY
-          // This simulates movement for the demo because you are sitting in a room.
-          // Adds 3 meters every second.
-          _simulatedDistanceKm += 0.003; 
+          _lastPosition = currentLatLng;
         });
       }
     });
@@ -50,21 +101,32 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
 
   Future<void> _endRide() async {
     _timer?.cancel();
+    _positionStream?.cancel();
 
-    // 1. Calculate Final Cost
     double totalCost = (_secondsElapsed / 60) * _costPerMinute;
-    if (totalCost < 5.0) totalCost = 5.0; // Minimum charge 5 Naira
+    if (totalCost < 5.0) totalCost = 5.0; 
 
-    // 2. Lock the Bike in Database (Critical for Hardware)
     try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      // 1. Update Bike Status
       await FirebaseFirestore.instance.collection('bikes').doc(widget.bikeId).update({
         'status': 'available',
-        'is_locked': true, // <--- RE-LOCKS THE BIKE
+        'is_locked': true,
         'current_rider': null,
       });
 
+      // 2. Save History (Using your exact Firebase field names)
+      await FirebaseFirestore.instance.collection('ride_history').add({
+        'user_id': user?.uid,
+        'bike_id': widget.bikeId,
+        'cost': totalCost,
+        'distance_km': _totalDistanceKm,
+        'duration_seconds': _secondsElapsed, 
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
       if (mounted) {
-        // 3. Go to Summary Page
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -72,9 +134,8 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
               bikeId: widget.bikeId,
               duration: "${(_secondsElapsed ~/ 60).toString().padLeft(2, '0')}:${(_secondsElapsed % 60).toString().padLeft(2, '0')}",
               cost: totalCost,
-              // 🟢 TODO: REPLACE WITH REAL GPS DISTANCE LATER
-              distanceKm: _simulatedDistanceKm,
-              routePoints: const [], // Empty route for now since we are simulating
+              distanceKm: _totalDistanceKm,
+              routePoints: _polylinePoints,
             ),
           ),
         );
@@ -87,49 +148,46 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _positionStream?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Formatting time
     String minutes = (_secondsElapsed ~/ 60).toString().padLeft(2, '0');
     String seconds = (_secondsElapsed % 60).toString().padLeft(2, '0');
-    // Fake milliseconds for techy effect
     String millis = ((_secondsElapsed * 37) % 100).toString().padLeft(2, '0'); 
-
-    // Calculate live cost for display
     double currentCost = (_secondsElapsed / 60) * _costPerMinute;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        automaticallyImplyLeading: false, // Don't let them go back!
+        automaticallyImplyLeading: false,
         leading: const Icon(Icons.pedal_bike, color: Colors.black, size: 28),
         title: const Text("NileGo", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
       
       body: Stack(
         children: [
-          // 🗺️ MAP BACKGROUND
-          const GoogleMap(
-            initialCameraPosition: CameraPosition(
+          GoogleMap(
+            onMapCreated: (controller) => _mapController = controller,
+            initialCameraPosition: const CameraPosition(
               target: _nileUniversity,
-              zoom: 16,
+              zoom: 17,
             ),
+            polylines: _polylines,
             zoomControlsEnabled: false,
-            myLocationButtonEnabled: false,
-            myLocationEnabled: true, // Show Blue Dot (You are here)
+            myLocationButtonEnabled: true,
+            myLocationEnabled: true,
           ),
 
-          // ⏱️ CENTER HUD
           Center(
             child: Container(
               width: 280,
               height: 280,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95), // Slightly transparent
+                color: Colors.white.withOpacity(0.95),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, spreadRadius: 5)
@@ -147,7 +205,7 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildStatItem(Icons.map, "${_simulatedDistanceKm.toStringAsFixed(2)} km"),
+                      _buildStatItem(Icons.map, "${_totalDistanceKm.toStringAsFixed(2)} km"),
                       Container(width: 1, height: 30, color: Colors.grey[300], margin: const EdgeInsets.symmetric(horizontal: 15)),
                       _buildStatItem(Icons.money, "₦${currentCost.toStringAsFixed(1)}"),
                     ],
@@ -157,7 +215,6 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
             ),
           ),
 
-          // 🔴 END RIDE BUTTON
           Positioned(
             bottom: 30,
             left: 20,
@@ -166,7 +223,7 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
               height: 60,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF5252), // Red
+                  backgroundColor: const Color(0xFFFF5252),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   elevation: 5,
                 ),
