@@ -11,6 +11,7 @@ class ProfilePage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      // 🟢 APP BAR IS HERE (Correct Position)
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -18,18 +19,27 @@ class ProfilePage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("NileGo", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text("My Profile", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
+      
+      // 🟢 BODY IS HERE
       body: FutureBuilder<DocumentSnapshot>(
-        // 🟢 Fetching real data from your 'users' collection
         future: FirebaseFirestore.instance.collection('users').doc(user?.uid).get(),
         builder: (context, snapshot) {
-          String fullName = "Nile Student"; // Default
+          // Default Value
+          String fullName = "Nile Student"; 
           
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
           if (snapshot.hasData && snapshot.data!.exists) {
-            // Adjust 'full_name' if your field key in Firebase is different
-            fullName = snapshot.data!['full_name'] ?? "Nile Student";
+            // Safe access to data map
+            final data = snapshot.data!.data() as Map<String, dynamic>?;
+            if (data != null && data.containsKey('full_name')) {
+              fullName = data['full_name'];
+            }
           }
 
           return SingleChildScrollView(
@@ -44,29 +54,32 @@ class ProfilePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 40),
 
-                // Read-Only Fields with REAL data
+                // Read-Only Fields
                 _buildProfileField("Full Name", fullName), 
                 _buildProfileField("Email", user?.email ?? "student@nile.edu.ng"),
-                _buildProfileField("User ID", user?.uid ?? "N/A"), // Helpful for debugging
+                _buildProfileField("User UID", user?.uid ?? "Unknown"), 
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 40),
                 
                 // Logout Button
                 SizedBox(
-                  width: 150,
-                  height: 45,
+                  width: double.infinity,
+                  height: 50,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      backgroundColor: Colors.red[50], // Light red background
+                      foregroundColor: Colors.red,     // Red text/icon
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      side: const BorderSide(color: Colors.red, width: 1.5)
                     ),
-                    icon: const Icon(Icons.logout, color: Colors.white),
-                    label: const Text("Log Out", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.logout),
+                    label: const Text("Log Out", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     onPressed: () async {
                       await FirebaseAuth.instance.signOut();
                       if (context.mounted) {
-                        // Clears the stack and goes back to AuthPage
-                        Navigator.popUntil(context, (route) => route.isFirst);
+                        // Pop all routes until we reach the root (Auth Page)
+                        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
                       }
                     },
                   ),
@@ -80,19 +93,23 @@ class ProfilePage extends StatelessWidget {
   }
 
   Widget _buildProfileField(String label, String value) {
+    // We use a key to force the TextField to update if the value changes
     return Padding(
       padding: const EdgeInsets.only(bottom: 20.0),
       child: TextField(
-        enabled: false, 
+        key: ValueKey(value), 
+        readOnly: true, // Better than enabled: false (allows copying text)
         controller: TextEditingController(text: value),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(color: Colors.grey),
+          labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
           filled: true,
-          fillColor: const Color(0xFFE8DEF8),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+          fillColor: Colors.grey[100],
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         ),
-        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 16),
       ),
     );
   }

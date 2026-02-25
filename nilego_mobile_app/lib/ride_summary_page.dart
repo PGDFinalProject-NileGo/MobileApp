@@ -55,8 +55,12 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
     if (widget.routePoints.isNotEmpty) {
-      LatLngBounds bounds = _getBounds(widget.routePoints);
-      _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+           LatLngBounds bounds = _getBounds(widget.routePoints);
+           _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
+        }
+      });
     }
   }
 
@@ -79,7 +83,7 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
     );
   }
 
-  // --- 📡 UPDATED PAYMENT LOGIC ---
+  // --- 📡 PAYMENT LOGIC ---
   Future<void> _handlePayment() async {
     setState(() => _isProcessing = true);
 
@@ -94,7 +98,7 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
         throw "Insufficient balance. Please top up your wallet.";
       }
 
-      // 2. Perform Atomic Transaction (Deduct Balance + Save History)
+      // 2. Perform Atomic Transaction
       WriteBatch batch = FirebaseFirestore.instance.batch();
 
       // Deduct from Wallet
@@ -102,17 +106,10 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
         'balance': FieldValue.increment(-widget.cost),
       });
 
-      // Save to History
-      DocumentReference historyRef = FirebaseFirestore.instance.collection('ride_history').doc();
-      batch.set(historyRef, {
-        'user_id': user.uid,
-        'bike_id': widget.bikeId,
-        'cost': widget.cost,
-        'distance_km': widget.distanceKm,
-        'duration': widget.duration,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-
+      // Save to History (Note: ActiveRidePage already saves history, 
+      // but if you want to double-save or update payment status, do it here.
+      // Assuming ActiveRidePage handled the ride record, we just deduct money here.)
+      
       await batch.commit();
 
       if (mounted) {
@@ -122,8 +119,10 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
         });
       }
     } catch (e) {
-      setState(() => _isProcessing = false);
-      _showErrorDialog(e.toString());
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        _showErrorDialog(e.toString());
+      }
     }
   }
 
@@ -154,6 +153,7 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
       ),
       body: Stack(
         children: [
+          // 1. MAP LAYER
           GoogleMap(
             onMapCreated: _onMapCreated,
             initialCameraPosition: CameraPosition(
@@ -165,11 +165,21 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
             myLocationButtonEnabled: false,
           ),
 
+          // 2. DIMMER LAYER (When Processing)
           if (_isProcessing || _isSuccess)
             Container(color: Colors.black.withOpacity(0.7)),
 
-          Center(child: _buildCenterCard()),
+          // 3. CENTER CARD (Details or Success Message)
+          if (!_isSuccess) 
+             Center(child: _buildDetailsCard()),
 
+          if (_isProcessing)
+             Center(child: _buildProcessingCard()),
+
+          if (_isSuccess)
+             Center(child: _buildSuccessCard()),
+
+          // 4. BOTTOM ACTION BUTTON (Only if not processing/success)
           if (!_isProcessing && !_isSuccess)
             Positioned(
               bottom: 30,
@@ -182,42 +192,17 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
     );
   }
 
-  Widget _buildCenterCard() {
-    if (_isProcessing) {
-      return _buildMessageCard(
-        child: Column(
-          children: [
-            const CircularProgressIndicator(color: Color(0xFF6750A4)),
-            const SizedBox(height: 20),
-            const Text("Processing Payment...", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            Text("₦${widget.cost.toStringAsFixed(2)}", style: const TextStyle(color: Colors.grey)),
-          ],
-        ),
-      );
-    }
+  // --- WIDGET HELPERS ---
 
-    if (_isSuccess) {
-      return _buildMessageCard(
-        child: Column(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 80),
-            const SizedBox(height: 10),
-            const Text("Ride Paid!", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6750A4), shape: const StadiumBorder()),
-              onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-              child: const Text("Done", style: TextStyle(color: Colors.white)),
-            )
-          ],
-        ),
-      );
-    }
-
+  Widget _buildDetailsCard() {
     return Container(
       width: 320,
       padding: const EdgeInsets.all(25),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(15), boxShadow: [const BoxShadow(blurRadius: 10, color: Colors.black26)]),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95), 
+        borderRadius: BorderRadius.circular(15), 
+        boxShadow: [const BoxShadow(blurRadius: 10, color: Colors.black26)]
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -231,12 +216,40 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
     );
   }
 
-  Widget _buildMessageCard({required Widget child}) {
+  Widget _buildProcessingCard() {
     return Container(
-      width: 280,
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [child]),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(color: Color(0xFF6750A4)),
+          const SizedBox(height: 20),
+          const Text("Processing Payment...", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessCard() {
+    return Container(
+      padding: const EdgeInsets.all(30),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle, color: Colors.green, size: 80),
+          const SizedBox(height: 10),
+          const Text("Ride Paid!", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6750A4), shape: const StadiumBorder()),
+            // Pop until we get back to Home (removes RideSummary and ActiveRide pages)
+            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+            child: const Text("Done", style: TextStyle(color: Colors.white)),
+          )
+        ],
+      ),
     );
   }
 
@@ -262,7 +275,11 @@ class _RideSummaryPageState extends State<RideSummaryPage> {
           color: Colors.amber,
           child: Padding(
             padding: EdgeInsets.all(12),
-            child: Text("Please make sure the bike is physically locked before paying.", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(
+              "Please confirm payment to complete your ride.", 
+              textAlign: TextAlign.center, 
+              style: TextStyle(fontWeight: FontWeight.bold)
+            ),
           ),
         ),
         const SizedBox(height: 15),

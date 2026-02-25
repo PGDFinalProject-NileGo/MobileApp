@@ -1,8 +1,8 @@
-import '../home_page.dart'; // Adjust path if needed, e.g., 'package:nilego/home_page.dart'
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../pages/login_page.dart';
-import '../pages/register_page.dart';
+import '../home_page.dart'; 
+import '../pages/login_page.dart';    // Assumes login_page.dart is in the same folder
+import '../pages/register_page.dart'; // Assumes register_page.dart is in the same folder
 
 class AuthPage extends StatelessWidget {
   const AuthPage({super.key});
@@ -13,11 +13,17 @@ class AuthPage extends StatelessWidget {
       body: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
-          // User is logged in
-          if (snapshot.hasData) {
-            return const HomePage(); // We will create this below!
+          // 1. Loading State (Prevents flash of login screen)
+          if (snapshot.connectionState == ConnectionState.waiting) {
+             return const Center(child: CircularProgressIndicator());
           }
-          // User is NOT logged in
+
+          // 2. User is logged in
+          if (snapshot.hasData) {
+            return const HomePage(); 
+          }
+
+          // 3. User is NOT logged in
           else {
             return const LoginOrRegisterPage();
           }

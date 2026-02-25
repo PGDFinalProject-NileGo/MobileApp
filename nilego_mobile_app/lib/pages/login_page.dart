@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:nilego_mobile_app/home_page.dart'; // Make sure this path matches your project
+// If your home page is in a different folder, adjust this import
+import '../../home_page.dart'; 
+
 class LoginPage extends StatefulWidget {
   final VoidCallback showRegisterPage;
   const LoginPage({super.key, required this.showRegisterPage});
@@ -13,8 +15,8 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-Future signIn() async {
-    // 1. Show Loading Indicator so user knows something is happening
+  Future signIn() async {
+    // 1. Show Loading Indicator
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -28,16 +30,18 @@ Future signIn() async {
         password: _passwordController.text.trim(),
       );
 
-      // 3. SUCCESS! Navigate to Home Page
+      // 3. Success handling
       if (mounted) {
         Navigator.pop(context); // Close the loading circle
+        // We don't necessarily NEED to navigate because AuthPage handles it, 
+        // but this ensures we move forward immediately.
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomePage()),
         );
       }
     } on FirebaseAuthException catch (e) {
-      // 4. ERROR! Close loading and show message
+      // 4. Error handling
       if (mounted) {
         Navigator.pop(context); // Close the loading circle
         showDialog(
@@ -58,6 +62,7 @@ Future signIn() async {
       }
     }
   }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -69,11 +74,9 @@ Future signIn() async {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // 1. THIS PREVENTS THE OVERFLOW
       body: SafeArea(
-        child: Center( // Keeps it centered when keyboard is closed
+        child: Center(
           child: SingleChildScrollView(
-            // 2. Added physics so it bounces nicely
             physics: const BouncingScrollPhysics(),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -81,8 +84,9 @@ Future signIn() async {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Logo & Name
-                  Row(
-                    children: const [
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.center, // Centered logo
+                    children: [
                       Icon(Icons.pedal_bike, size: 30, color: Colors.black),
                       SizedBox(width: 8),
                       Text(
@@ -96,7 +100,7 @@ Future signIn() async {
                     ],
                   ),
                   
-                  const SizedBox(height: 50), // Spacing
+                  const SizedBox(height: 50),
 
                   // Heading
                   const Text(
@@ -183,7 +187,9 @@ Future signIn() async {
 
                   // Forgot Password
                   GestureDetector(
-                    onTap: () {},
+                    onTap: () {
+                        // Optional: Add Forgot Password logic here later
+                    },
                     child: const Text(
                       'Forgot Password',
                       style: TextStyle(
@@ -218,7 +224,7 @@ Future signIn() async {
                     ),
                   ),
 
-                  const SizedBox(height: 20), // Bottom cushion
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -226,4 +232,5 @@ Future signIn() async {
         ),
       ),
     );
-  }}
+  }
+}

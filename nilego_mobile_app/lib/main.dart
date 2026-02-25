@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; 
-import 'auth/auth_page.dart'; // <--- Make sure this file exists!
-//import 'home_page.dart';
+import 'auth/auth_page.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // This connects your app to the Firebase Console you set up
+  // This connects your app to the Firebase Console
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -20,9 +19,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false, // Removes the little "Debug" banner
-      home: AuthPage(), // Start at the Gatekeeper (Login Check)
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      
+      // 🟢 CHANGE: Use 'initialRoute' and 'routes' instead of 'home'
+      // This allows the "Log Out" button to find the '/' route.
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const AuthPage(),
+      },
     );
   }
 }

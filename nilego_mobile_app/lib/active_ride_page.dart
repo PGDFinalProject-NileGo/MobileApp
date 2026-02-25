@@ -3,22 +3,31 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:nilego_mobile_app/ride_summary_page.dart';
+import 'package:nilego_mobile_app/ride_summary_page.dart'; 
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class ActiveRidePage extends StatefulWidget {
   final String bikeId;
-  const ActiveRidePage({super.key, required this.bikeId});
+  final BluetoothDevice connectedDevice;
+
+  const ActiveRidePage({
+    super.key, 
+    required this.bikeId, 
+    required this.connectedDevice
+  });
 
   @override
   State<ActiveRidePage> createState() => _ActiveRidePageState();
 }
 
 class _ActiveRidePageState extends State<ActiveRidePage> {
-  // Logic Variables
+  // --- VARIABLES ---
   int _secondsElapsed = 0;
   Timer? _timer;
+  bool _isBikeLocked = false;
   StreamSubscription<Position>? _positionStream;
+  StreamSubscription? _bluetoothSubscription;
   GoogleMapController? _mapController;
   
   final double _costPerMinute = 10.0; 
@@ -27,26 +36,64 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
   double _totalDistanceKm = 0.0;
   LatLng? _lastPosition;
 
-  // Polylines for drawing the path
   final Set<Polyline> _polylines = {};
   final List<LatLng> _polylinePoints = [];
-
   static const LatLng _nileUniversity = LatLng(9.0405, 7.3986);
 
+  // --- 1. FIREBASE START LOGIC ---
+  void _registerRideStart() {
+    final user = FirebaseAuth.instance.currentUser;
+    // Database Logic Check: matches your "End Ride" logic perfectly.
+    FirebaseFirestore.instance.collection('bikes').doc(widget.bikeId).update({
+      'status': 'in_use',
+      'is_locked': false,
+      'current_rider': user?.uid,
+      'start_time': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // --- 2. SINGLE INIT STATE (FIXED) ---
   @override
   void initState() {
     super.initState();
-    _startRide();
+    _registerRideStart();      // Update DB
+    _unlockBike();             // Open Lock
+    _startRide();              // Start Timer/GPS
+    _setupBluetoothListener(); // Listen for Lock
   }
 
+  // --- FUNCTION 3: AUTO UNLOCK ---
+  void _unlockBike() async {
+    // Safety check: Ensure device is connected
+    if (widget.connectedDevice.isConnected == false) {
+       try { await widget.connectedDevice.connect(); } catch (e) { print(e); }
+    }
+
+    List<BluetoothService> services = await widget.connectedDevice.discoverServices();
+    for (BluetoothService service in services) {
+      if (service.uuid.toString() == "4fafc201-1fb5-459e-8fcc-c5c9c331914b") {
+        for (BluetoothCharacteristic c in service.characteristics) {
+          if (c.uuid.toString() == "beb5483e-36e1-4688-b7f5-ea07361b26a8") {
+            String command = "UNLOCK";
+            await c.write(command.codeUnits);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Unlocking Bike..."), backgroundColor: Colors.blue)
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // --- FUNCTION 4: START RIDE (GPS & TIMER) ---
   void _startRide() async {
-    // 1. Request Permission
     LocationPermission permission = await Geolocator.requestPermission();
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
       return; 
     }
 
-    // 2. Start UI Timer (For the clock display)
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
@@ -55,24 +102,19 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
       }
     });
 
-    // 3. Start GPS Location Stream
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 3, // Updates every 3 meters moved
+        distanceFilter: 3, 
       ),
     ).listen((Position pos) {
       if (mounted) {
         LatLng currentLatLng = LatLng(pos.latitude, pos.longitude);
-        
-        // Move camera to follow the user
         _mapController?.animateCamera(CameraUpdate.newLatLng(currentLatLng));
 
         setState(() {
           _currentPosition = pos;
           _polylinePoints.add(currentLatLng);
-
-          // Update Polyline path
           _polylines.add(
             Polyline(
               polylineId: const PolylineId('ride_path'),
@@ -82,24 +124,59 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
             ),
           );
 
-          // Calculate distance
           if (_lastPosition != null) {
             double distanceMeters = Geolocator.distanceBetween(
-              _lastPosition!.latitude,
-              _lastPosition!.longitude,
-              pos.latitude,
-              pos.longitude,
+              _lastPosition!.latitude, _lastPosition!.longitude,
+              pos.latitude, pos.longitude,
             );
             _totalDistanceKm += distanceMeters / 1000;
           }
-          
           _lastPosition = currentLatLng;
         });
       }
     });
   }
 
+  // --- FUNCTION 5: BLUETOOTH LISTENER (SECURITY) ---
+  void _setupBluetoothListener() async {
+    List<BluetoothService> services = await widget.connectedDevice.discoverServices();
+    for (BluetoothService service in services) {
+      for (BluetoothCharacteristic c in service.characteristics) {
+        if (c.uuid.toString() == "beb5483e-36e1-4688-b7f5-ea07361b26a8") {
+          
+          await c.setNotifyValue(true);
+          _bluetoothSubscription = c.lastValueStream.listen((value) {
+            String message = String.fromCharCodes(value);
+            
+            if (message.contains("LOCKED")) {
+              setState(() {
+                _isBikeLocked = true; 
+              });
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Bike Locked! Ready to end ride."), backgroundColor: Colors.green)
+                );
+              }
+            }
+          });
+        }
+      }
+    }
+  }
+
+  // --- FUNCTION 6: END RIDE ---
   Future<void> _endRide() async {
+    if (!_isBikeLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("⚠️ You must physically lock the bike first!"),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        )
+      );
+      return; 
+    }
+
     _timer?.cancel();
     _positionStream?.cancel();
 
@@ -109,14 +186,14 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
 
-      // 1. Update Bike Status
+      // 1. Update Bike Status (Make available again)
       await FirebaseFirestore.instance.collection('bikes').doc(widget.bikeId).update({
         'status': 'available',
         'is_locked': true,
         'current_rider': null,
       });
 
-      // 2. Save History (Using your exact Firebase field names)
+      // 2. Add to History
       await FirebaseFirestore.instance.collection('ride_history').add({
         'user_id': user?.uid,
         'bike_id': widget.bikeId,
@@ -149,9 +226,11 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
   void dispose() {
     _timer?.cancel();
     _positionStream?.cancel();
+    _bluetoothSubscription?.cancel();
     super.dispose();
   }
 
+  // --- UI BUILDER ---
   @override
   Widget build(BuildContext context) {
     String minutes = (_secondsElapsed ~/ 60).toString().padLeft(2, '0');
@@ -210,6 +289,14 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
                       _buildStatItem(Icons.money, "₦${currentCost.toStringAsFixed(1)}"),
                     ],
                   ),
+                  
+                  // OPTIONAL: Manual Unlock Button for Demo
+                  const SizedBox(height: 20),
+                  TextButton.icon(
+                    onPressed: _unlockBike, 
+                    icon: const Icon(Icons.lock_open, color: Colors.blue),
+                    label: const Text("Tap to Unlock", style: TextStyle(color: Colors.blue)),
+                  ),
                 ],
               ),
             ),
@@ -223,12 +310,15 @@ class _ActiveRidePageState extends State<ActiveRidePage> {
               height: 60,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF5252),
+                  backgroundColor: _isBikeLocked ? const Color(0xFFFF5252) : Colors.grey,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   elevation: 5,
                 ),
-                icon: const Icon(Icons.stop_circle_outlined, color: Colors.white, size: 30),
-                label: const Text("End Ride & Lock", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                icon: Icon(_isBikeLocked ? Icons.stop_circle_outlined : Icons.lock_open, color: Colors.white, size: 30),
+                label: Text(
+                  _isBikeLocked ? "End Ride & Pay" : "Lock Bike to End Ride", 
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
+                ),
                 onPressed: _endRide,
               ),
             ),

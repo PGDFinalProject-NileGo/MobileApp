@@ -3,13 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart'; 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:nilego_mobile_app/active_ride_page.dart';
 import 'package:nilego_mobile_app/history_page.dart';
 import 'package:nilego_mobile_app/profile_page.dart';
 import 'package:nilego_mobile_app/wallet_page.dart';
-import 'scanner_page.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'dart:convert';
+import 'scanner_page.dart'; // ✅ Ensure this import is correct
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -24,15 +21,18 @@ class _HomePageState extends State<HomePage> {
   GoogleMapController? _mapController; 
 
   final List<Widget> _pages = [
-    const SizedBox(), // Placeholder for Map
+    const SizedBox(), // Placeholder for Map (Index 0)
     const WalletPage(),
     const HistoryPage(),
   ];
+
+  Set<Marker> _bikeMarkers = {};
 
   @override
   void initState() {
     super.initState();
     _locateUser(); 
+    _fetchAvailableBikes(); // Start listening for bikes immediately
   }
 
   Future<void> _locateUser() async {
@@ -54,117 +54,30 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // --- 📡 UPDATED BLUETOOTH UNLOCK LOGIC ---
-  Future<void> handleBikeUnlock(String bikeId) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircularProgressIndicator(color: Colors.white),
-          SizedBox(height: 10),
-          Text("Connecting to NileGo Bike...", style: TextStyle(color: Colors.white))
-        ],
-      )),
-    );
-
-    try {
-      if (await FlutterBluePlus.adapterState.first != BluetoothAdapterState.on) {
-        throw "Bluetooth is OFF. Please turn it on.";
-      }
-
-      BluetoothDevice? bikeDevice;
-      
-      // 1. SCAN FOR FIRMWARE NAME
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
-      await Future.delayed(const Duration(seconds: 10));
-      var subscription = FlutterBluePlus.scanResults.listen((results) {
-        for (ScanResult r in results) {
-          if (r.device.platformName == "NileGo_Bike_1") {
-             bikeDevice = r.device;
-             FlutterBluePlus.stopScan();
-             break;
-          }
-        }
-      });
-
-      await Future.delayed(const Duration(seconds: 4));
-      await subscription.cancel();
-
-      if (bikeDevice == null) throw "Bike not found nearby. Move closer!";
-
-      // 2. CONNECT
-      await bikeDevice!.connect();
-
-      const String SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-      const String CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-      
-      List<BluetoothService> services = await bikeDevice!.discoverServices();
-      BluetoothCharacteristic? commandChar;
-
-      for (var service in services) {
-        if (service.uuid.toString().toLowerCase() == SERVICE_UUID) {
-          for (var c in service.characteristics) {
-            if (c.uuid.toString().toLowerCase() == CHAR_UUID) {
-              commandChar = c;
-            }
-          }
-        }
-      }
-
-      if (commandChar == null) throw "Bike Security Service not found!";
-
-      // 3. LISTEN FOR SUCCESS (NOTIFY)
-      await commandChar.setNotifyValue(true);
-      commandChar.onValueReceived.listen((value) {
-        String status = utf8.decode(value);
-        if (status == "UNLOCKED") {
-           debugPrint("Hardware confirms lock is physically open!");
-        }
-      });
-
-      // 4. SEND "OPEN" COMMAND (Matches your new main.cpp)
-      await commandChar.write(utf8.encode("OPEN"));
-      
-      await Future.delayed(const Duration(seconds: 1));
-      await bikeDevice!.disconnect();
-      
-      // 5. UPDATE FIREBASE
-      final user = FirebaseAuth.instance.currentUser;
-      await FirebaseFirestore.instance.collection('bikes').doc(bikeId).update({
-          'status': 'in_use',
-          'is_locked': false,
-          'current_rider': user?.uid,
-          'start_time': FieldValue.serverTimestamp(),
-      });
-
+  // --- SHOW AVAILABLE BIKES ON MAP ---
+  void _fetchAvailableBikes() {
+    FirebaseFirestore.instance
+        .collection('bikes')
+        .where('status', isEqualTo: 'available') // Changed to match your DB logic usually
+        .snapshots()
+        .listen((snapshot) {
       if (mounted) {
-        Navigator.pop(context); // Close loading
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Bluetooth Connection Successful!"), backgroundColor: Colors.green)
-        );
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => ActiveRidePage(bikeId: bikeId)),
-        );
+        setState(() {
+          _bikeMarkers = snapshot.docs.map((doc) {
+            // Safety check for lat/lng
+            double lat = doc.data().containsKey('lat') ? doc['lat'] : 9.0405;
+            double lng = doc.data().containsKey('lng') ? doc['lng'] : 7.3986;
+            
+            return Marker(
+              markerId: MarkerId(doc.id),
+              position: LatLng(lat, lng),
+              infoWindow: InfoWindow(title: "Bike: ${doc.id}"),
+              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+            );
+          }).toSet();
+        });
       }
-
-    } catch (e) {
-      if (mounted) Navigator.pop(context); // Close loading
-      _showError("Unlock Failed: $e");
-    }
-  }
-
-  void _showError(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Error"),
-        content: Text(message),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))],
-      ),
-    );
+    });
   }
 
   @override
@@ -190,6 +103,7 @@ class _HomePageState extends State<HomePage> {
       body: _selectedIndex == 0 
         ? GoogleMap(
             initialCameraPosition: const CameraPosition(target: _nileUniversity, zoom: 16),
+            markers: _bikeMarkers,
             myLocationEnabled: true,
             myLocationButtonEnabled: true,
             zoomControlsEnabled: false,
@@ -200,14 +114,19 @@ class _HomePageState extends State<HomePage> {
           )
         : _pages[_selectedIndex], 
 
+      // ✅ FAB JUST OPENS SCANNER (Scanner handles the rest)
       floatingActionButton: _selectedIndex == 0 
         ? FloatingActionButton.extended(
             label: const Text('Scan to Unlock', style: TextStyle(color: Color(0xFF6750A4), fontWeight: FontWeight.bold, fontSize: 16)),
             icon: const Icon(Icons.camera_alt_outlined, color: Color(0xFF6750A4)),
             backgroundColor: const Color(0xFFE8DEF8), 
-            onPressed: () async {
-              final scannedCode = await Navigator.push(context, MaterialPageRoute(builder: (context) => const ScannerPage()));
-              if (scannedCode != null) handleBikeUnlock(scannedCode);
+            onPressed: () {
+               // Simply navigate to Scanner. 
+               // Scanner will connect and push ActiveRidePage automatically.
+               Navigator.push(
+                 context, 
+                 MaterialPageRoute(builder: (context) => const ScannerPage())
+               );
             },
           )
         : null, 
